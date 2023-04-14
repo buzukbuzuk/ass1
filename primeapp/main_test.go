@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -65,7 +67,7 @@ func Test_checkNumbers(t *testing.T) {
 }
 
 func Test_prompt(t *testing.T) {
-	rescueStdout := os.Stdout
+	rescue := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
@@ -73,9 +75,58 @@ func Test_prompt(t *testing.T) {
 
 	w.Close()
 	out, _ := ioutil.ReadAll(r)
-	os.Stdout = rescueStdout
+	os.Stdout = rescue
 
 	if string(out) != "this is value: test" {
 		t.Errorf("Expected %s, got %s", "this is value: test", out)
+	}
+}
+
+func Test_intro(t *testing.T) {
+	temp := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	intro()
+
+	w.Close()
+	os.Stdout = temp
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	expected := "Is it Prime?\n" +
+		"------------\n" +
+		"Enter a whole number, and we'll tell you if it is a prime number or not. Enter q to quit.\n" +
+		"-> "
+
+	if buf.String() != expected {
+		t.Errorf("Unexpected output from intro(). Got: %s, Expected: %s", buf.String(), expected)
+	}
+}
+
+func Test_readUserInput(t *testing.T) {
+	input := "5\nq\n"
+	reader := strings.NewReader(input)
+
+	temp := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	doneChan := make(chan bool)
+
+	go readUserInput(reader, doneChan)
+
+	<-doneChan
+
+	w.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	os.Stdout = temp
+
+	expected := "Please enter a whole number!\n-> 7 is a prime number!\n-> Goodbye.\n"
+
+	if buf.String() != expected {
+		t.Errorf("readUserInput failed, expected %s but got %s", expected, buf.String())
 	}
 }
